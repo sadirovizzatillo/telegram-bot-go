@@ -1,0 +1,32 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go build cache
+/build
+/bin
+/dist
+
+# Go coverage
+*.cover
+*.cov
+coverage.*
+
+# Environment variables
+.env
+
+# macOS files
+.DS_Store
+
+# Logs
+*.log
+nohup.out
+
+# IDE files
+.vscode/
+.idea/
