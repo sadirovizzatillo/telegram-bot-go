@@ -16,6 +16,8 @@ func main() {
 		log.Fatal(err)
 	}
 
+	tgBot.Request(tgbotapi.DeleteWebhookConfig{})
+
 	log.Printf("🤖 Authorized on account %s", tgBot.Self.UserName)
 
 	bot.Run(tgBot)
