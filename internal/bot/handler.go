@@ -27,19 +27,24 @@ func Run(bot *tgbotapi.BotAPI) {
 			link := linkRegex.FindString(text)
 			log.Println("🔗 Found link:", link)
 
+			// Send "Yuklanmoqda..." immediately
+			loadingMsg := tgbotapi.NewMessage(update.Message.Chat.ID, "⏳ Yuklanmoqda...")
+			sentMsg, _ := bot.Send(loadingMsg)
+
 			videoURL, err := extractor.GetVideoURL(link)
 			if err != nil {
 				log.Println("❌ Extraction error:", err)
-				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "❌ Failed to fetch video"))
+				edit := tgbotapi.NewEditMessageText(update.Message.Chat.ID, sentMsg.MessageID, "❌ Video yuklab bo‘lmadi.")
+				bot.Send(edit)
 				continue
 			}
 
+			// Replace "Yuklanmoqda..." with the video
 			video := tgbotapi.NewVideo(update.Message.Chat.ID, tgbotapi.FileURL(videoURL))
-			_, err = bot.Send(video)
-			if err != nil {
-				log.Println("⚠️ Video too big, sending link instead")
-				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, videoURL))
-			}
+			bot.Send(video)
+
+			// Optionally delete the loading message instead of editing
+			bot.Request(tgbotapi.NewDeleteMessage(update.Message.Chat.ID, sentMsg.MessageID))
 		}
 	}
 }
