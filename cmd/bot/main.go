@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -11,37 +13,51 @@ import (
 )
 
 func main() {
-	botToken := os.Getenv("TELEGRAM_BOT_TOKEN")
-	publicURL := os.Getenv("PUBLIC_URL") // example: https://mybot.up.railway.app
-
-	if botToken == "" || publicURL == "" {
-		log.Fatal("TELEGRAM_BOT_TOKEN and PUBLIC_URL must be set")
+	token := os.Getenv("BOT_TOKEN")
+	if token == "" {
+		log.Fatal("BOT_TOKEN not set")
 	}
 
-	bot, err := tgbotapi.NewBotAPI(botToken)
+	webhookURL := os.Getenv("WEBHOOK_URL")
+	if webhookURL == "" {
+		log.Fatal("WEBHOOK_URL not set")
+	}
+
+	bot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		log.Fatalf("Failed to create bot: %v", err)
 	}
 
-	// Delete old webhook (important when switching from polling)
-	_, _ = bot.Request(tgbotapi.DeleteWebhookConfig{})
+	bot.Debug = false
 
-	// Set new webhook
-	webhook := tgbotapi.NewWebhook(publicURL + "/webhook")
+	// ✅ Correct handling of NewWebhook return value
+	webhook, err := tgbotapi.NewWebhook(webhookURL)
+	if err != nil {
+		log.Fatalf("Failed to create webhook: %v", err)
+	}
+
+	// Set webhook
 	if _, err := bot.Request(webhook); err != nil {
 		log.Fatalf("Failed to set webhook: %v", err)
 	}
 
-	// Start HTTP server to receive webhook updates
-	updates := bot.ListenForWebhook("/webhook")
+	info, err := bot.GetWebhookInfo()
+	if err != nil {
+		log.Fatalf("Failed to get webhook info: %v", err)
+	}
+	if info.URL != webhookURL {
+		log.Fatalf("Webhook not set correctly: %v", info)
+	}
+
+	log.Printf("Bot started in webhook mode at %s", webhookURL)
+
+	// Regex for Instagram links only
+	instaRegex := regexp.MustCompile(`https?://(www\.)?instagram\.com/[^\s]+`)
+
+	updates := bot.ListenForWebhook("/")
 	go func() {
 		log.Fatal(http.ListenAndServe(":8080", nil))
 	}()
-
-	log.Printf("🤖 Bot started in webhook mode: %s", publicURL)
-
-	// URL pattern
-	urlRegex := regexp.MustCompile(`https?://[^\s]+`)
 
 	for update := range updates {
 		if update.Message == nil {
@@ -49,32 +65,48 @@ func main() {
 		}
 
 		text := update.Message.Text
-		if urlRegex.MatchString(text) {
-			link := urlRegex.FindString(text)
-			log.Printf("🔗 Found link: %s", link)
+		if instaRegex.MatchString(text) {
+			link := instaRegex.FindString(text)
+			log.Printf("📌 Instagram link found: %s", link)
 
 			// Send "Yuklanmoqda..." message
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "⏳ Yuklanmoqda...")
-			sentMsg, _ := bot.Send(msg)
+			sent, _ := bot.Send(msg)
 
-			// Download video using yt-dlp
-			filePath := "/tmp/video.mp4"
-			cmd := exec.Command("yt-dlp", "-o", filePath, link)
-			err := cmd.Run()
+			// Download the video
+			videoPath, err := downloadInstagramVideo(link)
 			if err != nil {
-				log.Printf("❌ Extraction error: %v", err)
-				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "❌ Failed to fetch video"))
+				log.Printf("❌ Download failed: %v", err)
+				edit := tgbotapi.NewEditMessageText(update.Message.Chat.ID, sent.MessageID, "❌ Video yuklab bo‘lmadi")
+				bot.Send(edit)
 				continue
 			}
+			defer os.Remove(videoPath)
 
-			// Send the video
-			video := tgbotapi.NewVideo(update.Message.Chat.ID, tgbotapi.FilePath(filePath))
-			video.Caption = "📹 Video yuklandi"
-			bot.Send(video)
-
-			// Delete "Yuklanmoqda..." message
-			del := tgbotapi.NewDeleteMessage(update.Message.Chat.ID, sentMsg.MessageID)
-			bot.Request(del)
+			// Send video
+			videoFile := tgbotapi.NewVideo(update.Message.Chat.ID, tgbotapi.FilePath(videoPath))
+			if _, err := bot.Send(videoFile); err != nil {
+				log.Printf("❌ Failed to send video: %v", err)
+			} else {
+				// Replace the "Yuklanmoqda..." with success message
+				edit := tgbotapi.NewEditMessageText(update.Message.Chat.ID, sent.MessageID, "✅ Video yuklandi")
+				bot.Send(edit)
+			}
 		}
 	}
+}
+
+// downloadInstagramVideo downloads an Instagram video using yt-dlp
+func downloadInstagramVideo(url string) (string, error) {
+	output := "video.mp4"
+	cmd := exec.Command("yt-dlp", "-o", output, url)
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("%v: %s", err, stderr.String())
+	}
+
+	return output, nil
 }
