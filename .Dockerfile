@@ -1,13 +1,19 @@
-FROM golang:1.22
+FROM golang:1.22-alpine
 
-RUN apt-get update && apt-get install -y python3 python3-pip ffmpeg
-RUN pip3 install yt-dlp
+# Install dependencies for yt-dlp
+RUN apk add --no-cache python3 py3-pip ffmpeg \
+    && pip install --no-cache-dir -U yt-dlp
 
 WORKDIR /app
+
+# Copy go modules first to leverage caching
 COPY go.mod go.sum ./
 RUN go mod download
 
+# Copy source code
 COPY . .
+
+# Build the bot
 RUN go build -ldflags="-w -s" -o bot ./cmd/bot
 
 CMD ["./bot"]
