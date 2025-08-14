@@ -8,22 +8,32 @@ import (
 )
 
 type Config struct {
-	TelegramToken string
+	BotToken   string
+	WebhookURL string
+	Port       string
 }
 
-func Load() Config {
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("⚠️ No .env file found, reading environment variables")
+func Load() *Config {
+	// Load .env only if not in Railway (local dev)
+	if _, ok := os.LookupEnv("RAILWAY_ENVIRONMENT"); !ok {
+		_ = godotenv.Load()
 	}
 
-	cfg := Config{
-		TelegramToken: os.Getenv("TELEGRAM_TOKEN"),
+	cfg := &Config{
+		BotToken:   os.Getenv("BOT_TOKEN"),
+		WebhookURL: os.Getenv("WEBHOOK_URL"),
+		Port:       getEnv("PORT", "8080"),
 	}
 
-	if cfg.TelegramToken == "" {
-		log.Fatal("❌ TELEGRAM_TOKEN is required")
+	if cfg.BotToken == "" {
+		log.Fatal("❌ BOT_TOKEN not set")
 	}
-
 	return cfg
+}
+
+func getEnv(key, def string) string {
+	if v, ok := os.LookupEnv(key); ok {
+		return v
+	}
+	return def
 }
