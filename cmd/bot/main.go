@@ -27,7 +27,15 @@ func main() {
 		// Webhook mode (Railway, production)
 		log.Println("🌍 Running in WEBHOOK mode on port", cfg.Port)
 
-		_, err = api.Request(tgbotapi.NewWebhook(cfg.WebhookURL))
+		wh, err := tgbotapi.NewWebhook(cfg.WebhookURL)
+		if err != nil {
+			log.Fatalf("❌ Failed to create webhook config: %v", err)
+		}
+
+		_, err = api.Request(wh)
+		if err != nil {
+			log.Fatalf("❌ Failed to set webhook: %v", err)
+		}
 		if err != nil {
 			log.Fatalf("❌ Failed to set webhook: %v", err)
 		}
