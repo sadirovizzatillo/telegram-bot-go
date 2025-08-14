@@ -1,4 +1,4 @@
-module telegram-video-bot
+module github.com/izzatillo/telegram-video-bot
 
 go 1.24.2
 

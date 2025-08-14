@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"os"
 
-	"telegram-video-bot/config"
-	"telegram-video-bot/internal/bot"
+	"github.com/izzatillo/telegram-video-bot/config"
+	"github.com/izzatillo/telegram-video-bot/internal/bot"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
